@@ -1,5 +1,30 @@
 use crate::github::PullRequest;
-use chrono::Local;
+use chrono::{Local, DateTime, Utc};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Filter {
+    All,
+    Recent24h,
+    Recent7d,
+}
+
+impl Filter {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Filter::All => "All",
+            Filter::Recent24h => "24h",
+            Filter::Recent7d => "7d",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            Filter::All => Filter::Recent24h,
+            Filter::Recent24h => Filter::Recent7d,
+            Filter::Recent7d => Filter::All,
+        }
+    }
+}
 
 pub struct App {
     pub prs: Vec<PullRequest>,
@@ -8,6 +33,7 @@ pub struct App {
     pub error: Option<String>,
     pub should_quit: bool,
     pub refreshing: bool,
+    pub filter: Filter,
 }
 
 impl App {
@@ -19,6 +45,7 @@ impl App {
             error: None,
             should_quit: false,
             refreshing: false,
+            filter: Filter::All,
         }
     }
 
@@ -39,9 +66,33 @@ impl App {
         self.refreshing = false;
     }
 
+    pub fn filtered_prs(&self) -> Vec<&PullRequest> {
+        let now = Utc::now();
+        self.prs.iter().filter(|pr| {
+            match self.filter {
+                Filter::All => true,
+                Filter::Recent24h => {
+                    if let Ok(dt) = pr.updated_at.parse::<DateTime<Utc>>() {
+                        now.signed_duration_since(dt).num_hours() < 24
+                    } else {
+                        true
+                    }
+                }
+                Filter::Recent7d => {
+                    if let Ok(dt) = pr.updated_at.parse::<DateTime<Utc>>() {
+                        now.signed_duration_since(dt).num_days() < 7
+                    } else {
+                        true
+                    }
+                }
+            }
+        }).collect()
+    }
+
     pub fn next(&mut self) {
-        if !self.prs.is_empty() {
-            self.selected = (self.selected + 1).min(self.prs.len() - 1);
+        let len = self.filtered_prs().len();
+        if len > 0 {
+            self.selected = (self.selected + 1).min(len - 1);
         }
     }
 
@@ -52,6 +103,11 @@ impl App {
     }
 
     pub fn selected_pr(&self) -> Option<&PullRequest> {
-        self.prs.get(self.selected)
+        self.filtered_prs().get(self.selected).copied()
+    }
+
+    pub fn toggle_filter(&mut self) {
+        self.filter = self.filter.next();
+        self.selected = 0;
     }
 }

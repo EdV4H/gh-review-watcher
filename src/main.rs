@@ -57,6 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                         }
+                        KeyCode::Tab => app.toggle_filter(),
                         KeyCode::Char('r') => {
                             // Manual refresh: spawn a one-off fetch
                             app.refreshing = true;

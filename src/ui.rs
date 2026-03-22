@@ -29,8 +29,9 @@ pub fn draw(f: &mut Frame, app: &App) {
     ])
     .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
 
-    let rows: Vec<Row> = app
-        .prs
+    let filtered = app.filtered_prs();
+
+    let rows: Vec<Row> = filtered
         .iter()
         .map(|pr| {
             let kind_cell = Cell::from(pr.kind.label()).style(match pr.kind {
@@ -72,7 +73,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .highlight_symbol(">> ");
 
     let mut state = TableState::default();
-    if !app.prs.is_empty() {
+    if !filtered.is_empty() {
         state.select(Some(app.selected));
     }
     f.render_stateful_widget(table, chunks[0], &mut state);
@@ -89,15 +90,21 @@ pub fn draw(f: &mut Frame, app: &App) {
                 " Refreshing...",
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
             ),
-            Span::raw(format!(" | {} PRs | Last updated: {}", app.prs.len(), app.last_updated)),
+            Span::raw(format!(
+                " | {}/{} PRs | Filter: {} | Last updated: {}",
+                filtered.len(), app.prs.len(), app.filter.label(), app.last_updated
+            )),
         ])
     } else {
         Line::from(vec![
             Span::styled(
-                format!(" {} PRs", app.prs.len()),
+                format!(" {}/{} PRs", filtered.len(), app.prs.len()),
                 Style::default().fg(Color::Green),
             ),
-            Span::raw(format!(" | Last updated: {}", app.last_updated)),
+            Span::raw(format!(
+                " | Filter: {} | Last updated: {}",
+                app.filter.label(), app.last_updated
+            )),
         ])
     };
     f.render_widget(Paragraph::new(status), chunks[1]);
@@ -111,7 +118,9 @@ pub fn draw(f: &mut Frame, app: &App) {
         Span::styled("Enter", Style::default().fg(Color::Cyan)),
         Span::raw(":open "),
         Span::styled("r", Style::default().fg(Color::Cyan)),
-        Span::raw(":refresh"),
+        Span::raw(":refresh "),
+        Span::styled("Tab", Style::default().fg(Color::Cyan)),
+        Span::raw(":filter"),
     ]);
     f.render_widget(Paragraph::new(help), chunks[2]);
 }
