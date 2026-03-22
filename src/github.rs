@@ -1,8 +1,24 @@
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::process::Command;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PrKind {
+    Review,
+    Assignee,
+}
+
+impl PrKind {
+    pub fn label(&self) -> &'static str {
+        match self {
+            PrKind::Review => "Review",
+            PrKind::Assignee => "Assignee",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
-pub struct PullRequest {
+struct RawPullRequest {
     pub repository: RepoInfo,
     pub number: u64,
     pub title: String,
@@ -10,6 +26,17 @@ pub struct PullRequest {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PullRequest {
+    pub repository: RepoInfo,
+    pub number: u64,
+    pub title: String,
+    pub author: AuthorInfo,
+    pub updated_at: String,
+    pub url: String,
+    pub kind: PrKind,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
@@ -42,12 +69,12 @@ impl PullRequest {
     }
 }
 
-pub fn fetch_review_requests() -> Result<Vec<PullRequest>, String> {
+fn search_prs(filter: &str) -> Result<Vec<RawPullRequest>, String> {
     let output = Command::new("gh")
         .args([
             "search",
             "prs",
-            "--review-requested=@me",
+            filter,
             "--state=open",
             "--json",
             "repository,number,title,author,updatedAt,url",
@@ -64,4 +91,44 @@ pub fn fetch_review_requests() -> Result<Vec<PullRequest>, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(&stdout).map_err(|e| format!("Failed to parse JSON: {e}"))
+}
+
+pub fn fetch_review_requests() -> Result<Vec<PullRequest>, String> {
+    let reviews = search_prs("--review-requested=@me")?;
+    let assigned = search_prs("--assignee=@me")?;
+
+    // Deduplicate: if a PR appears in both, keep it as Review (higher priority)
+    let mut seen: HashSet<(String, u64)> = HashSet::new();
+    let mut result: Vec<PullRequest> = Vec::new();
+
+    for raw in reviews {
+        let key = (raw.repository.name_with_owner.clone(), raw.number);
+        seen.insert(key);
+        result.push(PullRequest {
+            repository: raw.repository,
+            number: raw.number,
+            title: raw.title,
+            author: raw.author,
+            updated_at: raw.updated_at,
+            url: raw.url,
+            kind: PrKind::Review,
+        });
+    }
+
+    for raw in assigned {
+        let key = (raw.repository.name_with_owner.clone(), raw.number);
+        if !seen.contains(&key) {
+            result.push(PullRequest {
+                repository: raw.repository,
+                number: raw.number,
+                title: raw.title,
+                author: raw.author,
+                updated_at: raw.updated_at,
+                url: raw.url,
+                kind: PrKind::Assignee,
+            });
+        }
+    }
+
+    Ok(result)
 }

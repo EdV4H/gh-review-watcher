@@ -1,4 +1,5 @@
 use crate::app::App;
+use crate::github::PrKind;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -19,6 +20,7 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     // PR Table
     let header = Row::new(vec![
+        Cell::from("Kind"),
         Cell::from("Repo"),
         Cell::from("#"),
         Cell::from("Title"),
@@ -31,7 +33,12 @@ pub fn draw(f: &mut Frame, app: &App) {
         .prs
         .iter()
         .map(|pr| {
+            let kind_cell = Cell::from(pr.kind.label()).style(match pr.kind {
+                PrKind::Review => Style::default().fg(Color::Magenta),
+                PrKind::Assignee => Style::default().fg(Color::Blue),
+            });
             Row::new(vec![
+                kind_cell,
                 Cell::from(pr.repo().to_string()),
                 Cell::from(format!("#{}", pr.number)),
                 Cell::from(pr.title.clone()),
@@ -42,11 +49,12 @@ pub fn draw(f: &mut Frame, app: &App) {
         .collect();
 
     let widths = [
-        Constraint::Percentage(20),
+        Constraint::Length(10),
+        Constraint::Percentage(18),
         Constraint::Length(7),
-        Constraint::Percentage(40),
-        Constraint::Percentage(15),
-        Constraint::Percentage(15),
+        Constraint::Percentage(38),
+        Constraint::Percentage(13),
+        Constraint::Percentage(13),
     ];
 
     let table = Table::new(rows, widths)
@@ -54,7 +62,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Review Requests "),
+                .title(" Review Requests & Assigned PRs "),
         )
         .row_highlight_style(
             Style::default()
