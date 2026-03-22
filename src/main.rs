@@ -1,0 +1,98 @@
+mod action;
+mod app;
+mod config;
+mod github;
+mod ui;
+mod watcher;
+
+use app::App;
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEventKind},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
+};
+use ratatui::prelude::CrosstermBackend;
+use ratatui::Terminal;
+use std::io::stdout;
+use tokio::sync::mpsc;
+use watcher::WatcherEvent;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cfg = config::load_config();
+
+    // Setup terminal
+    enable_raw_mode()?;
+    stdout().execute(EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout());
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut app = App::new();
+
+    // Start watcher
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    watcher::spawn_watcher(cfg.clone(), tx.clone());
+
+    loop {
+        // Draw
+        terminal.draw(|f| ui::draw(f, &app))?;
+
+        // Handle events with a short timeout so we can also check watcher messages
+        if crossterm::event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            app.should_quit = true;
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => app.next(),
+                        KeyCode::Char('k') | KeyCode::Up => app.previous(),
+                        KeyCode::Enter => {
+                            if let Some(pr) = app.selected_pr() {
+                                if let Some(ref on_select) = cfg.on_select {
+                                    action::run_command(&on_select.command, pr);
+                                } else {
+                                    // Default: open URL
+                                    action::run_command("open {url}", pr);
+                                }
+                            }
+                        }
+                        KeyCode::Char('r') => {
+                            // Manual refresh: spawn a one-off fetch
+                            let tx2 = tx.clone();
+                            tokio::task::spawn_blocking(move || {
+                                match github::fetch_review_requests() {
+                                    Ok(prs) => {
+                                        let _ = tx2.send(WatcherEvent::Updated(prs));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx2.send(WatcherEvent::Error(e));
+                                    }
+                                }
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Process watcher events
+        while let Ok(ev) = rx.try_recv() {
+            match ev {
+                WatcherEvent::Updated(prs) => app.update_prs(prs),
+                WatcherEvent::Error(e) => app.set_error(e),
+            }
+        }
+
+        if app.should_quit {
+            break;
+        }
+    }
+
+    // Restore terminal
+    disable_raw_mode()?;
+    stdout().execute(LeaveAlternateScreen)?;
+
+    Ok(())
+}
