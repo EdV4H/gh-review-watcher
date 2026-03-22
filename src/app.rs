@@ -7,6 +7,7 @@ pub struct App {
     pub last_updated: String,
     pub error: Option<String>,
     pub should_quit: bool,
+    pub refreshing: bool,
 }
 
 impl App {
@@ -17,6 +18,7 @@ impl App {
             last_updated: "never".to_string(),
             error: None,
             should_quit: false,
+            refreshing: false,
         }
     }
 
@@ -24,6 +26,7 @@ impl App {
         self.prs = prs;
         self.last_updated = Local::now().format("%H:%M:%S").to_string();
         self.error = None;
+        self.refreshing = false;
         // Keep selection in bounds
         if self.selected >= self.prs.len() && !self.prs.is_empty() {
             self.selected = self.prs.len() - 1;
@@ -33,6 +36,7 @@ impl App {
     pub fn set_error(&mut self, err: String) {
         self.error = Some(err);
         self.last_updated = Local::now().format("%H:%M:%S").to_string();
+        self.refreshing = false;
     }
 
     pub fn next(&mut self) {

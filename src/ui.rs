@@ -75,6 +75,14 @@ pub fn draw(f: &mut Frame, app: &App) {
             Span::styled("ERROR: ", Style::default().fg(Color::Red)),
             Span::raw(err.as_str()),
         ])
+    } else if app.refreshing {
+        Line::from(vec![
+            Span::styled(
+                " Refreshing...",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(format!(" | {} PRs | Last updated: {}", app.prs.len(), app.last_updated)),
+        ])
     } else {
         Line::from(vec![
             Span::styled(

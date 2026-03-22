@@ -59,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         KeyCode::Char('r') => {
                             // Manual refresh: spawn a one-off fetch
+                            app.refreshing = true;
                             let tx2 = tx.clone();
                             tokio::task::spawn_blocking(move || {
                                 match github::fetch_review_requests() {
