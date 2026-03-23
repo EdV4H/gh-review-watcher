@@ -21,21 +21,28 @@ pub fn spawn_watcher(
         loop {
             match tokio::task::spawn_blocking(github::fetch_review_requests).await {
                 Ok(Ok(prs)) => {
-                    // Detect new PRs (skip on first run to avoid spamming)
                     if !first_run {
                         let current_ids: HashSet<(String, u64)> = prs
                             .iter()
                             .map(|pr| (pr.repo().to_string(), pr.number))
                             .collect();
 
-                        for pr in &prs {
+                        let new_prs: Vec<&PullRequest> = prs.iter().filter(|pr| {
                             let key = (pr.repo().to_string(), pr.number);
-                            if !known_ids.contains(&key) {
-                                // New PR detected — run on_new_pr actions
-                                for action in &config.on_new_pr {
-                                    action::run_command(&action.command, pr);
+                            !known_ids.contains(&key)
+                        }).collect();
+
+                        // Run actions for new PRs in a blocking context
+                        if !new_prs.is_empty() {
+                            let actions = config.on_new_pr.clone();
+                            let new_prs_owned: Vec<PullRequest> = new_prs.into_iter().cloned().collect();
+                            tokio::task::spawn_blocking(move || {
+                                for pr in &new_prs_owned {
+                                    for act in &actions {
+                                        action::run_command(&act.command, pr);
+                                    }
                                 }
-                            }
+                            });
                         }
 
                         known_ids = current_ids;
