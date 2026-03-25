@@ -1,8 +1,9 @@
 use crate::github::PullRequest;
-use std::process::Command;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 fn shell_escape(s: &str) -> String {
-    // Single-quote escaping: replace ' with '\''
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
@@ -15,16 +16,48 @@ pub fn expand_template(template: &str, pr: &PullRequest) -> String {
         .replace("{url}", &pr.url)
 }
 
+fn log(msg: &str) {
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/gh-review-watcher.log")
+    {
+        let now = chrono::Local::now().format("%H:%M:%S");
+        let _ = writeln!(f, "[{now}] {msg}");
+    }
+}
+
 pub fn run_command(command: &str, pr: &PullRequest) {
     let expanded = expand_template(command, pr);
+    log(&format!("Running: {expanded}"));
     match Command::new("sh")
         .arg("-c")
         .arg(&expanded)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
     {
-        Ok(_) => {}
+        Ok(child) => {
+            // Wait for the child in a separate thread to capture stderr
+            std::thread::spawn(move || {
+                match child.wait_with_output() {
+                    Ok(output) => {
+                        if !output.status.success() {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            log(&format!("Command failed (exit {}): {}", output.status, stderr));
+                        } else {
+                            log("Command succeeded");
+                        }
+                    }
+                    Err(e) => {
+                        log(&format!("Failed to wait for command: {e}"));
+                    }
+                }
+            });
+        }
         Err(e) => {
-            eprintln!("Failed to run on_new_pr command: {e}\nCommand: {expanded}");
+            log(&format!("Failed to spawn command: {e}\nCommand: {expanded}"));
         }
     }
 }

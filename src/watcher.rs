@@ -2,8 +2,21 @@ use crate::action;
 use crate::config::Config;
 use crate::github::{self, PullRequest};
 use std::collections::HashSet;
+use std::fs::OpenOptions;
+use std::io::Write;
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
+
+fn log(msg: &str) {
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/gh-review-watcher.log")
+    {
+        let now = chrono::Local::now().format("%H:%M:%S");
+        let _ = writeln!(f, "[{now}] {msg}");
+    }
+}
 
 pub enum WatcherEvent {
     Updated(Vec<PullRequest>),
@@ -32,7 +45,8 @@ pub fn spawn_watcher(
                             !known_ids.contains(&key)
                         }).collect();
 
-                        // Run actions for new PRs in a blocking context
+                        log(&format!("Poll: {} PRs total, {} new", prs.len(), new_prs.len()));
+
                         if !new_prs.is_empty() {
                             let actions = config.on_new_pr.clone();
                             let new_prs_owned: Vec<PullRequest> = new_prs.into_iter().cloned().collect();
@@ -47,6 +61,7 @@ pub fn spawn_watcher(
 
                         known_ids = current_ids;
                     } else {
+                        log(&format!("First run: {} PRs loaded into known set", prs.len()));
                         known_ids = prs
                             .iter()
                             .map(|pr| (pr.repo().to_string(), pr.number))
