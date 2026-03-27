@@ -50,7 +50,8 @@ pub fn spawn_watcher(
                         if !new_prs.is_empty() {
                             let actions = config.on_new_pr.clone();
                             let new_prs_owned: Vec<PullRequest> = new_prs.into_iter().cloned().collect();
-                            tokio::task::spawn_blocking(move || {
+                            log(&format!("Running {} hooks for {} new PRs", actions.len(), new_prs_owned.len()));
+                            std::thread::spawn(move || {
                                 for pr in &new_prs_owned {
                                     for act in &actions {
                                         action::run_command(&act.command, pr);
