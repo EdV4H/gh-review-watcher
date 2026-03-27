@@ -11,6 +11,11 @@ pub struct Config {
     #[serde(default)]
     pub on_new_pr: Vec<ActionCommand>,
 
+    /// Runs every poll cycle against ALL current PRs (not just new ones).
+    /// Each hook runs at most once per PR (tracked by repo+number+hook name).
+    #[serde(default)]
+    pub on_poll: Vec<ActionCommand>,
+
     #[serde(default)]
     pub on_select: Option<SelectCommand>,
 }
@@ -35,6 +40,7 @@ impl Default for Config {
         Self {
             interval: default_interval(),
             on_new_pr: Vec::new(),
+            on_poll: Vec::new(),
             on_select: None,
         }
     }
@@ -77,9 +83,10 @@ pub fn load_config() -> Config {
         match toml::from_str::<Config>(&content) {
             Ok(config) => {
                 log(&format!(
-                    "Config loaded: interval={}, on_new_pr={} hooks, on_select={}",
+                    "Config loaded: interval={}, on_new_pr={} hooks, on_poll={} hooks, on_select={}",
                     config.interval,
                     config.on_new_pr.len(),
+                    config.on_poll.len(),
                     config.on_select.is_some()
                 ));
                 config

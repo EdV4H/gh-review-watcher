@@ -29,6 +29,8 @@ pub fn spawn_watcher(
 ) {
     tokio::spawn(async move {
         let mut known_ids: HashSet<(String, u64)> = HashSet::new();
+        // Tracks (repo, number, hook_name) to avoid running the same on_poll hook twice per PR
+        let mut executed_poll: HashSet<(String, u64, String)> = HashSet::new();
         let mut first_run = true;
 
         loop {
@@ -69,6 +71,38 @@ pub fn spawn_watcher(
                         }
 
                         known_ids = current_ids;
+
+                        // Run on_poll hooks for all Review PRs (once per PR per hook)
+                        if !config.on_poll.is_empty() {
+                            let poll_actions = config.on_poll.clone();
+                            let review_prs: Vec<PullRequest> = prs
+                                .iter()
+                                .filter(|pr| pr.kind != PrKind::Assignee)
+                                .cloned()
+                                .collect();
+                            let mut to_run: Vec<(PullRequest, String, String)> = Vec::new();
+                            for pr in &review_prs {
+                                for act in &poll_actions {
+                                    let key = (pr.repo().to_string(), pr.number, act.name.clone());
+                                    if !executed_poll.contains(&key) {
+                                        executed_poll.insert(key);
+                                        to_run.push((pr.clone(), act.name.clone(), act.command.clone()));
+                                    }
+                                }
+                            }
+                            // Clean up entries for PRs no longer in the list
+                            executed_poll.retain(|(repo, num, _)| {
+                                review_prs.iter().any(|pr| pr.repo() == repo && pr.number == *num)
+                            });
+                            if !to_run.is_empty() {
+                                log(&format!("Running on_poll hooks for {} PR-hook pairs", to_run.len()));
+                                std::thread::spawn(move || {
+                                    for (pr, _name, cmd) in &to_run {
+                                        action::run_command(cmd, pr);
+                                    }
+                                });
+                            }
+                        }
                     } else {
                         log(&format!("First run: {} PRs loaded into known set", prs.len()));
                         known_ids = prs
