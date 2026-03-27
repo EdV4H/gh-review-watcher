@@ -1,6 +1,6 @@
 use crate::action;
 use crate::config::Config;
-use crate::github::{self, PullRequest};
+use crate::github::{self, PrKind, PullRequest};
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -49,15 +49,23 @@ pub fn spawn_watcher(
 
                         if !new_prs.is_empty() {
                             let actions = config.on_new_pr.clone();
-                            let new_prs_owned: Vec<PullRequest> = new_prs.into_iter().cloned().collect();
-                            log(&format!("Running {} hooks for {} new PRs", actions.len(), new_prs_owned.len()));
-                            std::thread::spawn(move || {
-                                for pr in &new_prs_owned {
-                                    for act in &actions {
-                                        action::run_command(&act.command, pr);
+                            let new_prs_owned: Vec<PullRequest> = new_prs
+                                .into_iter()
+                                .filter(|pr| pr.kind != PrKind::Assignee)
+                                .cloned()
+                                .collect();
+                            if new_prs_owned.is_empty() {
+                                log("Skipping hooks: all new PRs are Assignee kind");
+                            } else {
+                                log(&format!("Running {} hooks for {} new PRs", actions.len(), new_prs_owned.len()));
+                                std::thread::spawn(move || {
+                                    for pr in &new_prs_owned {
+                                        for act in &actions {
+                                            action::run_command(&act.command, pr);
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
 
                         known_ids = current_ids;
