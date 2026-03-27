@@ -26,6 +26,8 @@ struct RawPullRequest {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     pub url: String,
+    #[serde(default)]
+    pub labels: Vec<LabelInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -36,6 +38,7 @@ pub struct PullRequest {
     pub author: AuthorInfo,
     pub updated_at: String,
     pub url: String,
+    pub labels: Vec<LabelInfo>,
     pub kind: PrKind,
 }
 
@@ -48,6 +51,13 @@ pub struct RepoInfo {
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub struct AuthorInfo {
     pub login: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+pub struct LabelInfo {
+    pub name: String,
+    #[serde(default)]
+    pub color: String,
 }
 
 impl PullRequest {
@@ -67,6 +77,15 @@ impl PullRequest {
             &self.updated_at
         }
     }
+
+    /// Format labels as comma-separated string
+    pub fn labels_str(&self) -> String {
+        self.labels
+            .iter()
+            .map(|l| l.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 fn search_prs(filter: &str) -> Result<Vec<RawPullRequest>, String> {
@@ -77,7 +96,7 @@ fn search_prs(filter: &str) -> Result<Vec<RawPullRequest>, String> {
             filter,
             "--state=open",
             "--json",
-            "repository,number,title,author,updatedAt,url",
+            "repository,number,title,author,updatedAt,url,labels",
             "--limit",
             "100",
         ])
@@ -111,6 +130,7 @@ pub fn fetch_review_requests() -> Result<Vec<PullRequest>, String> {
             author: raw.author,
             updated_at: raw.updated_at,
             url: raw.url,
+            labels: raw.labels,
             kind: PrKind::Review,
         });
     }
@@ -125,6 +145,7 @@ pub fn fetch_review_requests() -> Result<Vec<PullRequest>, String> {
                 author: raw.author,
                 updated_at: raw.updated_at,
                 url: raw.url,
+                labels: raw.labels,
                 kind: PrKind::Assignee,
             });
         }

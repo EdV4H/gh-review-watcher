@@ -14,6 +14,7 @@ pub fn expand_template(template: &str, pr: &PullRequest) -> String {
         .replace("{title}", &shell_escape(&pr.title))
         .replace("{author}", pr.author())
         .replace("{url}", &pr.url)
+        .replace("{labels}", &shell_escape(&pr.labels_str()))
 }
 
 fn log(msg: &str) {

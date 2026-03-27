@@ -24,6 +24,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Cell::from("Repo"),
         Cell::from("#"),
         Cell::from("Title"),
+        Cell::from("Labels"),
         Cell::from("Author"),
         Cell::from("Updated"),
     ])
@@ -43,6 +44,7 @@ pub fn draw(f: &mut Frame, app: &App) {
                 Cell::from(pr.repo().to_string()),
                 Cell::from(format!("#{}", pr.number)),
                 Cell::from(pr.title.clone()),
+                Cell::from(Span::styled(pr.labels_str(), Style::default().fg(Color::Cyan))),
                 Cell::from(pr.author().to_string()),
                 Cell::from(pr.updated_short().to_string()),
             ])
@@ -51,11 +53,12 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     let widths = [
         Constraint::Length(10),
-        Constraint::Percentage(18),
+        Constraint::Percentage(15),
         Constraint::Length(7),
-        Constraint::Percentage(38),
-        Constraint::Percentage(13),
-        Constraint::Percentage(13),
+        Constraint::Percentage(30),
+        Constraint::Percentage(15),
+        Constraint::Percentage(10),
+        Constraint::Percentage(12),
     ];
 
     let table = Table::new(rows, widths)
