@@ -16,12 +16,12 @@ command = """/Applications/Utilities/Notifier.app/Contents/MacOS/Notifier \
   --message '{title} by @{author}' \
   --sound default"""
 
-# 新規PR検出時: zellijの現在のペインにStackしてClaude Codeにレビューさせる
+# 新規PR検出時: 新しいタブでClaude Codeにレビューさせる
+# review-pr スクリプトは -p でレビュー実行後、Approve/Discuss/Open の選択肢を提示する
 [[on_new_pr]]
-name = "review-pane"
-command = """zellij action new-pane --stacked --near-current-pane --name 'Review: {repo}#{number}' -- \
-  claude --dangerously-skip-permissions \
-  '/review {url}'"""
+name = "review-tab"
+command = """zellij action new-tab --name 'Review: {repo}#{number}' --close-on-exit -- \
+  review-pr '{url}' '{number}' '{repo}'"""
 
 # 毎ポーリング: "yolo" ラベルがついていたらClaude Codeでレビュー判定（PR単位で1回のみ実行）
 [[on_poll]]
