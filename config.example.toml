@@ -1,0 +1,33 @@
+# ポーリング間隔（秒）
+interval = 120
+
+# 新規PR検出時: ログファイルに記録（デバッグ用）
+[[on_new_pr]]
+name = "log"
+command = "echo '[NEW PR] {repo} #{number} {title} by @{author}' >> /tmp/gh-review-watcher-hooks.log"
+
+# 新規PR検出時: macOS通知
+[[on_new_pr]]
+name = "notify"
+command = """/Applications/Utilities/Notifier.app/Contents/MacOS/Notifier \
+  --type banner \
+  --title 'PR Review Request' \
+  --subtitle '{repo} #{number}' \
+  --message '{title} by @{author}' \
+  --sound default"""
+
+# 新規PR検出時: zellijの現在のペインにStackしてClaude Codeにレビューさせる
+[[on_new_pr]]
+name = "review-pane"
+command = """zellij action new-pane --stacked --near-current-pane --name 'Review: {repo}#{number}' -- \
+  claude --dangerously-skip-permissions \
+  '/review {url}'"""
+
+# 毎ポーリング: "yolo" ラベルがついていたらClaude Codeでレビュー判定（PR単位で1回のみ実行）
+[[on_poll]]
+name = "yolo-review"
+command = """echo {labels} | grep -q yolo && claude --dangerously-skip-permissions -p '/yolo-review {number} {repo}'"""
+
+# Enter押下時: ブラウザでPRを開く
+[on_select]
+command = "open {url}"
