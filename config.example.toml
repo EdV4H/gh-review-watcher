@@ -16,11 +16,11 @@ command = """/Applications/Utilities/Notifier.app/Contents/MacOS/Notifier \
   --message '{title} by @{author}' \
   --sound default"""
 
-# 新規PR検出時: 新しいタブでClaude Codeにレビューさせる
+# 新規PR検出時: yoloラベルがなければ新しいタブでClaude Codeにレビューさせる
 # review-pr スクリプトは -p でレビュー実行後、Approve/Discuss/Open の選択肢を提示する
 [[on_new_pr]]
 name = "review-tab"
-command = """zellij action new-tab --name 'Review: {repo}#{number}' --close-on-exit -- \
+command = """echo '{labels}' | grep -q yolo || zellij action new-tab --name 'Review: {repo}#{number}' --close-on-exit -- \
   review-pr '{url}' '{number}' '{repo}'"""
 
 # 毎ポーリング: "yolo" ラベルがついていたらClaude Codeでレビュー判定（PR単位で1回のみ実行）
