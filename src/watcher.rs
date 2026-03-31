@@ -70,7 +70,15 @@ pub fn spawn_watcher(
                             }
                         }
 
-                        known_ids = current_ids;
+                        // Only update known_ids when the API returns results.
+                        // An empty response likely means a transient API failure,
+                        // and resetting known_ids would cause all PRs to be
+                        // re-detected as "new" on the next successful poll.
+                        if !current_ids.is_empty() {
+                            known_ids = current_ids;
+                        } else {
+                            log("Skipping known_ids update: empty API response");
+                        }
 
                         // Run on_poll hooks for all Review PRs (once per PR per hook)
                         if !config.on_poll.is_empty() {
