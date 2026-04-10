@@ -1,0 +1,47 @@
+# gh-review-watcher 設定例
+# macOS + Zellij + Claude Code を使ったPRレビュー自動化
+
+# ポーリング間隔（秒）
+interval = 120
+
+# --- on_new_pr: 新規PR検出時 ---
+
+# ログファイルに記録（デバッグ用）
+[[on_new_pr]]
+name = "log"
+command = "echo '[NEW PR] {repo} #{number} {title} by @{author}' >> /tmp/gh-review-watcher-hooks.log"
+
+# macOS通知
+[[on_new_pr]]
+name = "notify"
+command = """/Applications/Utilities/Notifier.app/Contents/MacOS/Notifier \
+  --type banner \
+  --title 'PR Review Request' \
+  --subtitle '{repo} #{number}' \
+  --message {title} \
+  --sound default"""
+
+# yoloラベルがなければZellijの新タブでClaude Codeレビューを実行
+# 分析完了後にタブにフォーカスが移るため、起動直後はgo-to-previous-tabで元タブに戻す
+[[on_new_pr]]
+name = "review-tab"
+command = """echo '{labels}' | grep -q yolo || (zellij action new-tab --name 'Review: {repo}#{number}' --close-on-exit -- \
+  review-pr '{url}' '{number}' '{repo}' && zellij action go-to-previous-tab)"""
+
+# --- on_poll: 毎ポーリング ---
+
+# "yolo" ラベルがついたPRはClaude Codeで自動レビュー判定
+[[on_poll]]
+name = "yolo-review"
+command = """echo '{labels}' | grep -q yolo && claude --dangerously-skip-permissions -p '/yolo-review {number} {repo}'"""
+
+# マージ済み/クローズ済みPRのレビュータブを自動で閉じる
+[[on_poll]]
+name = "close-merged-tab"
+command = "close-merged-review-tab '{number}' '{repo}'"
+
+# --- on_select: Enter押下時 ---
+
+# ブラウザでPRを開く
+[on_select]
+command = "open {url}"

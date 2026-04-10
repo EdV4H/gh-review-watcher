@@ -49,6 +49,14 @@ command = """zellij action new-pane --floating --name "Review: {repo}#{number}" 
 command = "open {url}"
 ```
 
+### フックの種類
+
+| フック | タイミング | 対象 |
+|--------|-----------|------|
+| `[[on_new_pr]]` | 新規PR検出時 | 検出されたPR |
+| `[[on_poll]]` | 毎ポーリング | 追跡中の全PR |
+| `[on_select]` | Enter押下時 | 選択中のPR |
+
 ### テンプレート変数
 
 | 変数 | 内容 |
@@ -58,6 +66,11 @@ command = "open {url}"
 | `{title}` | PRタイトル |
 | `{author}` | PR作成者 |
 | `{url}` | PRのURL |
+| `{labels}` | PRのラベル（カンマ区切り） |
+
+### 設定例
+
+[examples/config.toml](examples/config.toml) に、macOS + Zellij + Claude Code を使ったPRレビュー自動化の設定例があります。
 
 ## インストール
 
