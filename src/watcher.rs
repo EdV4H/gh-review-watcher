@@ -1,7 +1,7 @@
 use crate::action;
 use crate::config::Config;
 use crate::github::{self, PrKind, PullRequest};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::Write;
 use tokio::sync::mpsc;
@@ -28,7 +28,7 @@ pub fn spawn_watcher(
     tx: mpsc::UnboundedSender<WatcherEvent>,
 ) {
     tokio::spawn(async move {
-        let mut known_ids: HashSet<(String, u64)> = HashSet::new();
+        let mut known_prs: HashMap<(String, u64), PullRequest> = HashMap::new();
         // Tracks (repo, number, hook_name) to avoid running the same on_poll hook twice per PR
         let mut executed_poll: HashSet<(String, u64, String)> = HashSet::new();
         let mut first_run = true;
@@ -44,7 +44,7 @@ pub fn spawn_watcher(
 
                         let new_prs: Vec<&PullRequest> = prs.iter().filter(|pr| {
                             let key = (pr.repo().to_string(), pr.number);
-                            !known_ids.contains(&key)
+                            !known_prs.contains_key(&key)
                         }).collect();
 
                         log(&format!("Poll: {} PRs total, {} new", prs.len(), new_prs.len()));
@@ -70,14 +70,38 @@ pub fn spawn_watcher(
                             }
                         }
 
-                        // Only update known_ids when the API returns results.
+                        // Only update known_prs when the API returns results.
                         // An empty response likely means a transient API failure,
-                        // and resetting known_ids would cause all PRs to be
+                        // and resetting known_prs would cause all PRs to be
                         // re-detected as "new" on the next successful poll.
                         if !current_ids.is_empty() {
-                            known_ids = current_ids;
+                            // Detect removed PRs (were in known_prs but not in current)
+                            if !config.on_remove.is_empty() {
+                                let removed_prs: Vec<PullRequest> = known_prs
+                                    .iter()
+                                    .filter(|(key, _)| !current_ids.contains(key))
+                                    .map(|(_, pr)| pr.clone())
+                                    .collect();
+
+                                if !removed_prs.is_empty() {
+                                    log(&format!("Running {} on_remove hooks for {} removed PRs", config.on_remove.len(), removed_prs.len()));
+                                    let remove_actions = config.on_remove.clone();
+                                    std::thread::spawn(move || {
+                                        for pr in &removed_prs {
+                                            for act in &remove_actions {
+                                                action::run_command(&act.command, pr);
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+
+                            known_prs = prs
+                                .iter()
+                                .map(|pr| ((pr.repo().to_string(), pr.number), pr.clone()))
+                                .collect();
                         } else {
-                            log("Skipping known_ids update: empty API response");
+                            log("Skipping known_prs update: empty API response");
                         }
 
                         // Run on_poll hooks for all Review PRs (once per PR per hook)
@@ -113,9 +137,9 @@ pub fn spawn_watcher(
                         }
                     } else {
                         log(&format!("First run: {} PRs loaded into known set", prs.len()));
-                        known_ids = prs
+                        known_prs = prs
                             .iter()
-                            .map(|pr| (pr.repo().to_string(), pr.number))
+                            .map(|pr| ((pr.repo().to_string(), pr.number), pr.clone()))
                             .collect();
                         first_run = false;
                     }

@@ -35,9 +35,11 @@ command = """echo '{labels}' | grep -q yolo || (zellij action new-tab --name 'Re
 name = "yolo-review"
 command = """echo '{labels}' | grep -q yolo && claude --dangerously-skip-permissions -p '/yolo-review {number} {repo}'"""
 
-# マージ済み/クローズ済みPRのレビュータブを自動で閉じる
-[[on_poll]]
-name = "close-merged-tab"
+# --- on_remove: PRがリストから消えた時（マージ・クローズ・レビュー解除等） ---
+
+# レビュータブを自動で閉じる
+[[on_remove]]
+name = "close-review-tab"
 command = "close-merged-review-tab '{number}' '{repo}'"
 
 # --- on_select: Enter押下時 ---

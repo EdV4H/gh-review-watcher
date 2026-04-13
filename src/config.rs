@@ -16,6 +16,11 @@ pub struct Config {
     #[serde(default)]
     pub on_poll: Vec<ActionCommand>,
 
+    /// Runs when a previously tracked PR disappears from the list
+    /// (e.g., merged, closed, or review request removed).
+    #[serde(default)]
+    pub on_remove: Vec<ActionCommand>,
+
     #[serde(default)]
     pub on_select: Option<SelectCommand>,
 }
@@ -41,6 +46,7 @@ impl Default for Config {
             interval: default_interval(),
             on_new_pr: Vec::new(),
             on_poll: Vec::new(),
+            on_remove: Vec::new(),
             on_select: None,
         }
     }
@@ -83,10 +89,11 @@ pub fn load_config() -> Config {
         match toml::from_str::<Config>(&content) {
             Ok(config) => {
                 log(&format!(
-                    "Config loaded: interval={}, on_new_pr={} hooks, on_poll={} hooks, on_select={}",
+                    "Config loaded: interval={}, on_new_pr={} hooks, on_poll={} hooks, on_remove={} hooks, on_select={}",
                     config.interval,
                     config.on_new_pr.len(),
                     config.on_poll.len(),
+                    config.on_remove.len(),
                     config.on_select.is_some()
                 ));
                 config
